@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Singlepass Studio — Accuracy Report</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-mark"></span>
+      <span class="brand-name">Singlepass</span>
+      <span class="brand-sub">Studio</span>
+    </a>
+    <nav class="nav">
+      <a href="index.html">New</a>
+      <a href="viewer.html">Viewer</a>
+      <a href="report.html" class="is-active">Report</a>
+      <a href="#">Archive</a>
+    </nav>
+    <div class="row">
+      <button class="btn btn-sm">Export PDF</button>
+      <button class="btn btn-primary btn-sm">Sign &amp; issue</button>
+    </div>
+  </div>
+</header>
+
+<main class="shell" style="padding-top:72px">
+
+  <!-- ── masthead ─────────────────────────────────────── -->
+  <section class="row-between" style="align-items:flex-end">
+    <div class="stack-sm">
+      <span class="label">Accuracy report · SP-2026-0416</span>
+      <h1 class="display display-lg">Duliajan sector 4</h1>
+      <p class="dim mono" style="font-size:12px">
+        single pass · 40° oblique · 90 m AGL · 184 keyframes · EPSG 32646
+      </p>
+    </div>
+    <span class="pill pill-accent">Validated against survey control</span>
+  </section>
+
+  <!-- ── headline metrics ─────────────────────────────── -->
+  <section class="grid-4" style="margin-top:56px">
+    <div class="panel panel-pad metric">
+      <span class="metric-label">Relative error</span>
+      <span class="metric-value" style="color:var(--conf-high)">5.7<span class="unit">%</span></span>
+      <span class="metric-note">mean over 6 structures</span>
+    </div>
+    <div class="panel panel-pad metric">
+      <span class="metric-label">Scale residual</span>
+      <span class="metric-value">0.48<span class="unit">%</span></span>
+      <span class="metric-note">Sim(3) + IMU attitude</span>
+    </div>
+    <div class="panel panel-pad metric">
+      <span class="metric-label">Absolute RMSE</span>
+      <span class="metric-value">2.94<span class="unit">m</span></span>
+      <span class="metric-note">GNSS-limited, no GCPs</span>
+    </div>
+    <div class="panel panel-pad metric">
+      <span class="metric-label">Observed surface</span>
+      <span class="metric-value">73.4<span class="unit">%</span></span>
+      <span class="metric-note">26.6 % inferred</span>
+    </div>
+  </section>
+
+  <!-- ── the distinction ──────────────────────────────── -->
+  <section style="margin-top:24px">
+    <div class="panel panel-pad" style="border-color:var(--accent-mid);background:linear-gradient(180deg,rgba(201,162,39,.045),transparent)">
+      <div class="row" style="align-items:flex-start;gap:18px">
+        <span class="accent" style="font-size:15px;line-height:1.4">◆</span>
+        <div>
+          <div style="font-size:14px;font-weight:500;margin-bottom:7px">Absolute and relative accuracy are different figures</div>
+          <p class="dim" style="font-size:13px;line-height:1.7;margin:0;max-width:78ch">
+            Absolute position is bounded by the GNSS receiver — 1–3 m without RTK, and no
+            processing recovers what the receiver never knew. Relative measurement is far
+            tighter, because scale error enters as a single global multiplier rather than
+            per-point noise. Measurement tasks depend on the relative figure. Both are
+            reported; conflating them overstates the system.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── per-structure ────────────────────────────────── -->
+  <section style="margin-top:72px">
+    <div class="row-between" style="margin-bottom:26px">
+      <div>
+        <span class="label">Validation</span>
+        <h2 class="display display-md" style="margin-top:9px">Per-structure height recovery</h2>
+      </div>
+      <span class="pill">ground truth from control survey</span>
+    </div>
+
+    <div class="panel panel-pad">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Structure</th>
+            <th>Observability</th>
+            <th style="text-align:right">Reference</th>
+            <th style="text-align:right">Positions only</th>
+            <th style="text-align:right">With IMU</th>
+            <th style="text-align:right">Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>B-01</td>
+            <td><span class="row" style="gap:7px"><span class="dot" style="background:var(--conf-high)"></span><span class="dim" style="font-size:12px">3+ views</span></span></td>
+            <td class="num" style="text-align:right">26.88 m</td>
+            <td class="num dim" style="text-align:right">20.55 m</td>
+            <td class="num" style="text-align:right">27.69 m</td>
+            <td class="num" style="text-align:right;color:var(--conf-high)">3.0 %</td>
+          </tr>
+          <tr>
+            <td>B-02</td>
+            <td><span class="row" style="gap:7px"><span class="dot" style="background:var(--conf-high)"></span><span class="dim" style="font-size:12px">3+ views</span></span></td>
+            <td class="num" style="text-align:right">17.50 m</td>
+            <td class="num dim" style="text-align:right">10.95 m</td>
+            <td class="num" style="text-align:right">18.37 m</td>
+            <td class="num" style="text-align:right;color:var(--conf-high)">5.0 %</td>
+          </tr>
+          <tr>
+            <td>B-03</td>
+            <td><span class="row" style="gap:7px"><span class="dot" style="background:var(--conf-high)"></span><span class="dim" style="font-size:12px">3+ views</span></span></td>
+            <td class="num" style="text-align:right">25.53 m</td>
+            <td class="num dim" style="text-align:right">12.26 m</td>
+            <td class="num" style="text-align:right">26.36 m</td>
+            <td class="num" style="text-align:right;color:var(--conf-high)">3.3 %</td>
+          </tr>
+          <tr>
+            <td>B-04</td>
+            <td><span class="row" style="gap:7px"><span class="dot" style="background:var(--conf-high)"></span><span class="dim" style="font-size:12px">3+ views</span></span></td>
+            <td class="num" style="text-align:right">21.52 m</td>
+            <td class="num dim" style="text-align:right">17.99 m</td>
+            <td class="num" style="text-align:right">22.24 m</td>
+            <td class="num" style="text-align:right;color:var(--conf-high)">3.3 %</td>
+          </tr>
+          <tr>
+            <td>B-05</td>
+            <td><span class="row" style="gap:7px"><span class="dot" style="background:var(--conf-mid)"></span><span class="dim" style="font-size:12px">2 views</span></span></td>
+            <td class="num" style="text-align:right">6.40 m</td>
+            <td class="num dim" style="text-align:right">13.41 m</td>
+            <td class="num" style="text-align:right">7.29 m</td>
+            <td class="num" style="text-align:right;color:var(--conf-low)">13.9 %</td>
+          </tr>
+          <tr>
+            <td>B-06</td>
+            <td><span class="row" style="gap:7px"><span class="dot" style="background:var(--conf-high)"></span><span class="dim" style="font-size:12px">3+ views</span></span></td>
+            <td class="num" style="text-align:right">16.85 m</td>
+            <td class="num dim" style="text-align:right">18.26 m</td>
+            <td class="num" style="text-align:right">17.81 m</td>
+            <td class="num" style="text-align:right;color:var(--conf-high)">5.6 %</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="rule-top row-between" style="margin-top:28px">
+        <span class="dim" style="font-size:12.5px">
+          Mean error — positions only <span class="mono" style="color:var(--conf-none)">41.2 %</span>
+          &nbsp;·&nbsp; with IMU attitude <span class="mono" style="color:var(--conf-high)">5.7 %</span>
+        </span>
+        <span class="pill pill-accent">7× improvement</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── why ──────────────────────────────────────────── -->
+  <section style="margin-top:72px">
+    <span class="label">Method note</span>
+    <h2 class="display display-md" style="margin-top:9px;margin-bottom:26px">Why attitude fusion is not optional</h2>
+
+    <div class="grid-2" style="gap:20px">
+      <div class="panel panel-pad stack-sm">
+        <span class="pill" style="color:var(--conf-none);border-color:rgba(180,84,74,.4)">Failure mode</span>
+        <p style="font-size:14.5px;line-height:1.65;margin-top:4px">
+          A straight pass produces a near-collinear GNSS track. Collinear points cannot
+          constrain rotation <em>about</em> the flight axis, so roll is left free.
+        </p>
+        <p class="dim" style="font-size:13px;line-height:1.7">
+          The failure is silent. Scale converges to under 0.5 % error in every variant
+          tested, so a team validating on scale alone concludes the alignment is sound —
+          then finds every measurement wrong with no indication why.
+        </p>
+        <div class="kv" style="margin-top:8px"><span class="kv-k">Track collinearity</span><span class="kv-v" style="color:var(--conf-none)">0.88</span></div>
+      </div>
+
+      <div class="panel panel-pad stack-sm">
+        <span class="pill" style="color:var(--conf-high);border-color:rgba(111,169,138,.4)">Correction</span>
+        <p style="font-size:14.5px;line-height:1.65;margin-top:4px">
+          Rotation is taken from IMU attitude by chordal rotation averaging; scale from the
+          ratio of spreads about the centroid, which is rotation-invariant.
+        </p>
+        <p class="dim" style="font-size:13px;line-height:1.7">
+          GNSS multipath near tall structures is rejected by RANSAC before the fit. Three
+          fixes were discarded on this pass.
+        </p>
+        <div class="kv" style="margin-top:8px"><span class="kv-k">Height error after</span><span class="kv-v" style="color:var(--conf-high)">5.7 %</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── geometry budget ──────────────────────────────── -->
+  <section style="margin-top:72px">
+    <span class="label">Capture geometry</span>
+    <h2 class="display display-md" style="margin-top:9px;margin-bottom:26px">Baseline governs depth precision</h2>
+
+    <div class="panel panel-pad">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Frame stride</th>
+            <th style="text-align:right">Baseline</th>
+            <th style="text-align:right">B / Z</th>
+            <th style="text-align:right">Intersection</th>
+            <th style="text-align:right">Depth σ</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="dim">i → i+1</td><td class="num dim" style="text-align:right">2.65 m</td><td class="num dim" style="text-align:right">0.029</td><td class="num dim" style="text-align:right">1.68°</td><td class="num" style="text-align:right;color:var(--conf-none)">3.350 m</td></tr>
+          <tr><td class="dim">i → i+5</td><td class="num dim" style="text-align:right">13.67 m</td><td class="num dim" style="text-align:right">0.152</td><td class="num dim" style="text-align:right">8.69°</td><td class="num" style="text-align:right;color:var(--conf-low)">0.648 m</td></tr>
+          <tr><td class="dim">i → i+10</td><td class="num dim" style="text-align:right">27.34 m</td><td class="num dim" style="text-align:right">0.304</td><td class="num dim" style="text-align:right">17.27°</td><td class="num" style="text-align:right;color:var(--conf-mid)">0.324 m</td></tr>
+          <tr style="background:var(--accent-lo)"><td class="accent">i → i+20 &nbsp;<span style="font-size:11px">adopted</span></td><td class="num" style="text-align:right">54.17 m</td><td class="num" style="text-align:right">0.602</td><td class="num" style="text-align:right">33.50°</td><td class="num" style="text-align:right;color:var(--conf-high)">0.164 m</td></tr>
+          <tr><td class="dim">i → i+40</td><td class="num dim" style="text-align:right">108.62 m</td><td class="num dim" style="text-align:right">1.207</td><td class="num dim" style="text-align:right">62.22°</td><td class="num dim" style="text-align:right">0.082 m</td></tr>
+        </tbody>
+      </table>
+      <p class="dim" style="font-size:12.5px;line-height:1.7;margin-top:22px;padding-top:20px;border-top:1px solid var(--line-soft);max-width:80ch">
+        Depth uncertainty follows σ<sub>Z</sub> ≈ Z²⁄(f·B)·σ<sub>d</sub> — quadratic in range,
+        inverse in baseline. Consecutive frames intersect at 1.68°, which is numerically
+        indefensible. Stride 20 was adopted; stride 40 gains little further and costs
+        correspondence reliability.
+      </p>
+    </div>
+  </section>
+
+  <!-- ── compute ──────────────────────────────────────── -->
+  <section style="margin-top:72px">
+    <span class="label">Compute envelope</span>
+    <h2 class="display display-md" style="margin-top:9px;margin-bottom:26px">Measured, not assumed</h2>
+
+    <div class="grid-2" style="gap:20px;grid-template-columns:1fr 1fr">
+      <div class="panel panel-pad">
+        <div class="row-between" style="margin-bottom:20px">
+          <div>
+            <div style="font-size:14px;font-weight:500">RTX 4050 Laptop</div>
+            <div class="dim mono" style="font-size:11.5px;margin-top:3px">6 141 MB · compute 8.9 · 5.66 TFLOPS fp32</div>
+          </div>
+        </div>
+        <div class="kv"><span class="kv-k">Practical ceiling</span><span class="kv-v" style="color:var(--conf-high)">3 355 443 primitives</span></div>
+        <div class="kv"><span class="kv-k">At that size</span><span class="kv-v">150.8 ms / step</span></div>
+        <div class="kv"><span class="kv-k">Allocate-till-OOM</span><span class="kv-v dim">5 368 708</span></div>
+        <div class="kv"><span class="kv-k">Spill penalty</span><span class="kv-v" style="color:var(--conf-none)">≈ 6× slower</span></div>
+      </div>
+
+      <div class="panel panel-pad">
+        <div class="card-title" style="margin-bottom:18px">Why the larger number is a trap</div>
+        <p class="dim" style="font-size:13px;line-height:1.75">
+          Allocation past physical VRAM does not raise on Windows — the driver falls back
+          to host memory over PCIe. The run continues and step time collapses from
+          150 ms to 888 ms.
+        </p>
+        <p class="dim" style="font-size:13px;line-height:1.75;margin-top:12px">
+          Scoping to the number that merely avoided a crash produces a pipeline that
+          appears to work in testing and misses its time budget under load. The ceiling
+          is the last configuration that stays resident.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── declaration ──────────────────────────────────── -->
+  <section style="margin-top:72px;margin-bottom:40px">
+    <div class="panel panel-pad" style="padding:48px">
+      <div class="grid-2" style="gap:48px;align-items:start">
+        <div class="stack-sm">
+          <span class="label">Declaration of limits</span>
+          <p class="display" style="font-size:26px;line-height:1.3">
+            26.6 % of this scene was never observed.
+          </p>
+        </div>
+        <div class="stack-sm">
+          <p class="dim" style="font-size:13.5px;line-height:1.75">
+            Rear façades and terrain beyond the flight corridor fall outside every camera
+            frustum on a single pass. Those regions are marked as inferred throughout the
+            model and are excluded from every measurement in this report.
+          </p>
+          <p class="dim" style="font-size:13.5px;line-height:1.75">
+            No geometry has been synthesised to fill them. A surface presented as measured
+            was resolved from at least two independent views.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="shell row-between">
+    <span>Singlepass Studio — wireframe</span>
+    <span class="mono" style="font-size:11px">figures from probe/run_demo.py · synthetic ground truth</span>
+  </div>
+</footer>
+
+</body>
+</html>

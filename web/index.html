@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Singlepass Studio — New Reconstruction</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="shell topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-mark"></span>
+      <span class="brand-name">Singlepass</span>
+      <span class="brand-sub">Studio</span>
+    </a>
+    <nav class="nav">
+      <a href="index.html" class="is-active">New</a>
+      <a href="viewer.html">Viewer</a>
+      <a href="report.html">Report</a>
+      <a href="#">Archive</a>
+    </nav>
+    <div class="row">
+      <span class="pill"><span class="dot dot-live"></span> Engine ready</span>
+      <a href="viewer.html" class="btn btn-sm">Open last</a>
+    </div>
+  </div>
+</header>
+
+<main class="shell" style="padding-top:96px">
+
+  <!-- ── hero ─────────────────────────────────────────── -->
+  <section class="stack" style="max-width:820px">
+    <span class="label">Single-pass photogrammetry</span>
+    <h1 class="display display-xl">
+      One flight path.<br>
+      <em style="color:var(--accent)">A measurable</em> world.
+    </h1>
+    <p class="lede">
+      Reconstruct georeferenced, metrically accurate 3D geometry from a single
+      drone pass — no grid survey, no ground control points, no second sortie.
+      Every surface carries an observability grade, so you always know what the
+      model saw and what it inferred.
+    </p>
+  </section>
+
+  <!-- ── intake ───────────────────────────────────────── -->
+  <section style="margin-top:80px">
+    <div class="grid-2" style="grid-template-columns:1.35fr 1fr;gap:24px;align-items:start">
+
+      <div class="panel panel-pad stack">
+        <div class="row-between">
+          <span class="label">Source capture</span>
+          <span class="pill">MP4 · MOV · MKV</span>
+        </div>
+
+        <div class="dropzone">
+          <div class="display display-md" style="color:var(--text-2)">Drop flight footage</div>
+          <p class="dim" style="font-size:13px;margin-top:10px">
+            1080p or 4K · single continuous pass · 40–300 s
+          </p>
+          <button class="btn btn-primary" style="margin-top:26px">Select file</button>
+        </div>
+
+        <div class="grid-2" style="gap:18px">
+          <div class="field">
+            <label class="field-label">Telemetry</label>
+            <input class="input" value="DJI_0416.SRT" readonly>
+          </div>
+          <div class="field">
+            <label class="field-label">Attitude source</label>
+            <input class="input" value="onboard IMU / AHRS" readonly>
+          </div>
+        </div>
+
+        <div class="rule-top row" style="gap:10px;align-items:flex-start">
+          <span style="color:var(--accent);font-size:13px;line-height:1.5">◆</span>
+          <p class="dim" style="font-size:12.5px;line-height:1.6;margin:0">
+            IMU attitude is <strong style="color:var(--text-2);font-weight:500">required</strong>, not optional.
+            A straight pass yields a near-collinear GPS track, which cannot constrain roll about
+            the flight axis. Position-only alignment measured 41.2 % height error against 5.7 %
+            with attitude fusion.
+          </p>
+        </div>
+      </div>
+
+      <div class="stack" style="gap:20px">
+
+        <div class="panel panel-pad stack-sm">
+          <span class="label">Capture geometry</span>
+
+          <div class="field" style="margin-top:6px">
+            <label class="field-label">Camera pitch</label>
+            <div class="seg" style="width:100%">
+              <button style="flex:1">Nadir 0°</button>
+              <button class="is-on" style="flex:1">Oblique 40°</button>
+              <button style="flex:1">55°</button>
+            </div>
+          </div>
+
+          <p class="dim" style="font-size:12px;line-height:1.6">
+            Nadir capture is degenerate under forward motion — centre-frame points sit at
+            the epipole with no parallax. Oblique restores triangulation and exposes façades.
+          </p>
+
+          <div class="rule-top" style="padding-top:20px">
+            <div class="kv"><span class="kv-k">Altitude AGL</span><span class="kv-v">90 m</span></div>
+            <div class="kv"><span class="kv-k">Pass length</span><span class="kv-v">160 m</span></div>
+            <div class="kv"><span class="kv-k">Match stride</span><span class="kv-v accent">i → i+20</span></div>
+            <div class="kv"><span class="kv-k">Depth σ at stride</span><span class="kv-v">0.16 m</span></div>
+          </div>
+        </div>
+
+        <div class="panel panel-pad stack-sm">
+          <span class="label">Compute budget</span>
+          <div class="row-between" style="margin-top:4px">
+            <div>
+              <div class="kv-v" style="font-size:14px">RTX 4050 Laptop</div>
+              <div class="dim" style="font-size:11.5px;margin-top:2px">6 144 MB VRAM</div>
+            </div>
+            <span class="pill pill-accent">Capped</span>
+          </div>
+          <div class="bar" style="margin-top:14px"><span style="width:33%;background:var(--accent)"></span></div>
+          <div class="row-between dim" style="font-size:11px;font-family:'IBM Plex Mono',monospace">
+            <span>1.10 M allocated</span><span>ceiling 3.36 M</span>
+          </div>
+          <p class="dim" style="font-size:12px;line-height:1.6;margin-top:6px">
+            Measured at 150.8 ms/step fully resident. Beyond 3.36 M the driver spills to
+            host RAM and step time collapses to 888 ms — that boundary, not the OOM point,
+            is the real ceiling.
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ── pipeline ─────────────────────────────────────── -->
+  <section style="margin-top:80px">
+    <div class="row-between" style="margin-bottom:26px">
+      <div>
+        <span class="label">Processing chain</span>
+        <h2 class="display display-md" style="margin-top:10px">Nine stages, fully inspectable</h2>
+      </div>
+      <a href="viewer.html" class="btn btn-primary">Begin reconstruction →</a>
+    </div>
+
+    <div class="panel panel-pad">
+      <div class="pipe">
+        <div class="pipe-step is-done">
+          <span class="pipe-idx">01</span>
+          <div><div class="pipe-name">Keyframe selection</div>
+            <div class="pipe-desc">Laplacian-variance blur rejection, overlap targeting</div></div>
+          <span class="pipe-state">184 / 5 400</span>
+        </div>
+        <div class="pipe-step is-done">
+          <span class="pipe-idx">02</span>
+          <div><div class="pipe-name">Dynamic object masking</div>
+            <div class="pipe-desc">Vehicles, people and animals removed before matching</div></div>
+          <span class="pipe-state">11 masked</span>
+        </div>
+        <div class="pipe-step is-done">
+          <span class="pipe-idx">03</span>
+          <div><div class="pipe-name">Wide-baseline pairing</div>
+            <div class="pipe-desc">Stride-20 correspondence — 33.5° intersection versus 1.7° adjacent</div></div>
+          <span class="pipe-state">312 pairs</span>
+        </div>
+        <div class="pipe-step is-live">
+          <span class="pipe-idx">04</span>
+          <div><div class="pipe-name">Dense pointmap regression</div>
+            <div class="pipe-desc">Feed-forward reconstruction — tolerant of low parallax where classical SfM fails</div></div>
+          <span class="pipe-state">running</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-idx">05</span>
+          <div><div class="pipe-name">Metric alignment</div>
+            <div class="pipe-desc">Sim(3) with IMU attitude, RANSAC over GNSS multipath</div></div>
+          <span class="pipe-state">queued</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-idx">06</span>
+          <div><div class="pipe-name">Densification</div>
+            <div class="pipe-desc">Gaussian optimisation under an explicit primitive cap</div></div>
+          <span class="pipe-state">queued</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-idx">07</span>
+          <div><div class="pipe-name">Surface extraction</div>
+            <div class="pipe-desc">Mesh recovery and photometric texturing</div></div>
+          <span class="pipe-state">queued</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-idx">08</span>
+          <div><div class="pipe-name">Observability grading</div>
+            <div class="pipe-desc">Per-surface view count — observed geometry separated from inferred</div></div>
+          <span class="pipe-state">queued</span>
+        </div>
+        <div class="pipe-step">
+          <span class="pipe-idx">09</span>
+          <div><div class="pipe-name">Accuracy report</div>
+            <div class="pipe-desc">Absolute and relative error stated separately</div></div>
+          <span class="pipe-state">queued</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── principle ────────────────────────────────────── -->
+  <section style="margin-top:96px">
+    <div class="panel panel-pad" style="padding:56px 48px">
+      <div class="grid-2" style="gap:56px;align-items:center">
+        <div class="stack-sm">
+          <span class="label">Design principle</span>
+          <p class="display display-lg" style="line-height:1.18">
+            A model that invents a wall it never saw is worse than one with a visible hole.
+          </p>
+        </div>
+        <div class="stack-sm">
+          <p class="lede" style="font-size:15px">
+            One pass leaves roughly a quarter of any scene unobserved. That is geometry,
+            not a defect — and no amount of inference changes it.
+          </p>
+          <p class="lede" style="font-size:15px">
+            Every surface is graded by how many cameras genuinely resolved it. Inferred
+            regions are marked, never blended in silently. An analyst always knows which
+            measurements carry weight.
+          </p>
+          <div class="grid-4" style="gap:12px;margin-top:14px">
+            <div><div class="legend-sw" style="background:var(--conf-high);width:100%"></div><div class="dim" style="font-size:10.5px;margin-top:7px">3+ views</div></div>
+            <div><div class="legend-sw" style="background:var(--conf-mid);width:100%"></div><div class="dim" style="font-size:10.5px;margin-top:7px">2 views</div></div>
+            <div><div class="legend-sw" style="background:var(--conf-low);width:100%"></div><div class="dim" style="font-size:10.5px;margin-top:7px">1 view</div></div>
+            <div><div class="legend-sw" style="background:var(--conf-none);width:100%"></div><div class="dim" style="font-size:10.5px;margin-top:7px">Unobserved</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="shell row-between">
+    <span>Singlepass Studio — wireframe</span>
+    <span class="mono" style="font-size:11px">SIH26158 · single-pass drone video → 3D</span>
+  </div>
+</footer>
+
+</body>
+</html>

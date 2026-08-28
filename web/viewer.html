@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Singlepass Studio — Viewer</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="shell-wide topbar-inner">
+    <a class="brand" href="index.html">
+      <span class="brand-mark"></span>
+      <span class="brand-name">Singlepass</span>
+      <span class="brand-sub">Studio</span>
+    </a>
+    <nav class="nav">
+      <a href="index.html">New</a>
+      <a href="viewer.html" class="is-active">Viewer</a>
+      <a href="report.html">Report</a>
+      <a href="#">Archive</a>
+    </nav>
+    <div class="row">
+      <span class="pill mono" style="font-size:11px">SP-2026-0416</span>
+      <button class="btn btn-sm">Export</button>
+      <a href="report.html" class="btn btn-primary btn-sm">Accuracy report</a>
+    </div>
+  </div>
+</header>
+
+<main class="shell-wide">
+  <div class="viewer-grid">
+
+    <!-- ── stage ─────────────────────────────────────── -->
+    <div class="stage">
+      <canvas id="stage"></canvas>
+
+      <div class="stage-overlay">
+        <div class="row" style="align-items:flex-start;justify-content:space-between">
+          <div class="hud">
+            <span><span class="dim">SITE</span> Duliajan sector 4</span>
+            <span class="sep"></span>
+            <span><span class="dim">PASS</span> single · 40° oblique</span>
+            <span class="sep"></span>
+            <span><span class="dim">EPSG</span> 32646</span>
+            <span class="sep"></span>
+            <span class="accent" id="hud-mode">observability</span>
+          </div>
+
+          <div class="tools">
+            <button class="tool is-on" data-tool="orbit" title="Orbit">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="9" ry="3.6"/></svg>
+            </button>
+            <button class="tool" data-tool="measure" title="Measure">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 17 17 3l4 4L7 21z"/><path d="M8 12l2 2M12 8l2 2"/></svg>
+            </button>
+            <button class="tool" data-tool="section" title="Section">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 12h18M7 6l-4 6 4 6"/></svg>
+            </button>
+            <button class="tool" data-tool="pin" title="Annotate">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 21s7-6.3 7-11a7 7 0 1 0-14 0c0 4.7 7 11 7 11z"/><circle cx="12" cy="10" r="2.4"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="row" style="align-items:flex-end;justify-content:space-between">
+          <div class="legend">
+            <span class="label" style="font-size:9px;margin-bottom:3px">Observability</span>
+            <div class="legend-row"><span class="legend-sw" style="background:var(--conf-high)"></span> 3+ views · triangulated</div>
+            <div class="legend-row"><span class="legend-sw" style="background:var(--conf-mid)"></span> 2 views · weak</div>
+            <div class="legend-row"><span class="legend-sw" style="background:var(--conf-low)"></span> 1 view · monocular</div>
+            <div class="legend-row"><span class="legend-sw" style="background:var(--conf-none)"></span> unobserved · inferred</div>
+          </div>
+
+          <div class="hud" style="align-self:flex-end">
+            <span class="dim">drag orbit</span>
+            <span class="sep"></span>
+            <span class="dim">scroll zoom</span>
+            <span class="sep"></span>
+            <button id="btn-rotate" class="btn-ghost btn btn-sm" style="padding:2px 8px;font-size:11px">pause spin</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── side panel ────────────────────────────────── -->
+    <aside class="side">
+
+      <div class="card">
+        <div class="card-title">Display</div>
+        <div class="seg" style="width:100%">
+          <button class="is-on" data-mode="confidence" style="flex:1">Observability</button>
+          <button data-mode="material" style="flex:1">Texture</button>
+        </div>
+        <p class="dim" style="font-size:11.5px;line-height:1.6;margin-top:14px">
+          Observability grades each surface by how many cameras genuinely resolved it.
+          Red regions were never seen and are inferred, not measured.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Reconstruction</div>
+        <div class="kv"><span class="kv-k">Keyframes</span><span class="kv-v">184</span></div>
+        <div class="kv"><span class="kv-k">Primitives</span><span class="kv-v">1 104 882</span></div>
+        <div class="kv"><span class="kv-k">Mesh faces</span><span class="kv-v">846 210</span></div>
+        <div class="kv"><span class="kv-k">Ground sample</span><span class="kv-v">2.8 cm/px</span></div>
+        <div class="kv"><span class="kv-k">Wall time</span><span class="kv-v">18 m 04 s</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Coverage</div>
+        <div class="stack-xs" style="margin-bottom:4px">
+          <div class="row-between" style="font-size:12px">
+            <span class="muted">3+ views</span><span class="mono">71.8 %</span>
+          </div>
+          <div class="bar"><span style="width:71.8%;background:var(--conf-high)"></span></div>
+        </div>
+        <div class="stack-xs" style="margin:12px 0 4px">
+          <div class="row-between" style="font-size:12px">
+            <span class="muted">2 views</span><span class="mono">0.8 %</span>
+          </div>
+          <div class="bar"><span style="width:4%;background:var(--conf-mid)"></span></div>
+        </div>
+        <div class="stack-xs" style="margin:12px 0 4px">
+          <div class="row-between" style="font-size:12px">
+            <span class="muted">1 view</span><span class="mono">0.8 %</span>
+          </div>
+          <div class="bar"><span style="width:4%;background:var(--conf-low)"></span></div>
+        </div>
+        <div class="stack-xs" style="margin:12px 0 4px">
+          <div class="row-between" style="font-size:12px">
+            <span class="muted">Unobserved</span><span class="mono" style="color:var(--conf-none)">26.6 %</span>
+          </div>
+          <div class="bar"><span style="width:26.6%;background:var(--conf-none)"></span></div>
+        </div>
+        <p class="dim" style="font-size:11.5px;line-height:1.6;margin-top:16px;padding-top:14px;border-top:1px solid var(--line-soft)">
+          Rear façades and terrain beyond the corridor were never resolved from a single pass.
+          Flagged rather than filled.
+        </p>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Measurements</div>
+        <div class="meas">
+          <div><div class="meas-name">Structure B-03 height</div><div class="meas-sub">3+ views · high</div></div>
+          <div class="meas-val">26.36 m</div>
+        </div>
+        <div class="meas">
+          <div><div class="meas-name">Access road width</div><div class="meas-sub">3+ views · high</div></div>
+          <div class="meas-val">7.14 m</div>
+        </div>
+        <div class="meas">
+          <div><div class="meas-name">B-03 → B-07 span</div><div class="meas-sub">3+ views · high</div></div>
+          <div class="meas-val">48.92 m</div>
+        </div>
+        <div class="meas">
+          <div><div class="meas-name">Rear façade depth</div><div class="meas-sub" style="color:var(--conf-none)">unobserved · inferred</div></div>
+          <div class="meas-val" style="color:var(--text-4)">— —</div>
+        </div>
+        <button class="btn btn-sm" style="width:100%;margin-top:16px">Add measurement</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Georeference</div>
+        <div class="kv"><span class="kv-k">Alignment</span><span class="kv-v accent">Sim(3) + IMU</span></div>
+        <div class="kv"><span class="kv-k">Scale residual</span><span class="kv-v">0.48 %</span></div>
+        <div class="kv"><span class="kv-k">Track RMSE</span><span class="kv-v">2.94 m</span></div>
+        <div class="kv"><span class="kv-k">Relative error</span><span class="kv-v" style="color:var(--conf-high)">5.7 %</span></div>
+        <div class="kv"><span class="kv-k">GNSS outliers</span><span class="kv-v">3 rejected</span></div>
+      </div>
+
+    </aside>
+  </div>
+</main>
+
+<script type="module">
+import { mountViewer } from './scene.js';
+
+const api = mountViewer(document.getElementById('stage'));
+
+document.querySelectorAll('[data-mode]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('[data-mode]').forEach(x => x.classList.remove('is-on'));
+    b.classList.add('is-on');
+    api.setMode(b.dataset.mode);
+    document.getElementById('hud-mode').textContent =
+      b.dataset.mode === 'confidence' ? 'observability' : 'texture';
+  });
+});
+
+document.querySelectorAll('.tool').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tool').forEach(x => x.classList.remove('is-on'));
+    t.classList.add('is-on');
+  });
+});
+
+const rot = document.getElementById('btn-rotate');
+let spinning = true;
+rot.addEventListener('click', () => {
+  api.toggleRotate();
+  spinning = !spinning;
+  rot.textContent = spinning ? 'pause spin' : 'resume spin';
+});
+</script>
+
+</body>
+</html>
