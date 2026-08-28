@@ -18,3 +18,10 @@ out/*.ply
 .DS_Store
 Thumbs.db
 *.log
+
+# footage + run artefacts
+*.mp4
+*.mov
+*.mkv
+out/runs/
+out/*.png

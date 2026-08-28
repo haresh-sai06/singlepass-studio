@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Singlepass Studio — Reconstruction</title>
+<link rel="stylesheet" href="/web/styles.css">
+<style>
+  .work { display:grid; grid-template-columns: 372px 1fr 320px; gap:18px;
+          height:calc(100vh - 72px - 36px); padding:18px 0; }
+  .col  { display:flex; flex-direction:column; gap:14px; overflow-y:auto; padding-right:4px; }
+  .col::-webkit-scrollbar{width:5px} .col::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+
+  .toggle { display:flex; align-items:flex-start; justify-content:space-between;
+            gap:14px; padding:13px 0; cursor:pointer; }
+  .toggle + .toggle { border-top:1px solid var(--line-soft); }
+  .toggle-t { font-size:13.5px; }
+  .toggle-d { font-size:11.5px; color:var(--text-4); margin-top:3px; line-height:1.5; }
+  .sw { width:36px; height:20px; border-radius:20px; background:var(--surface-3);
+        border:1px solid var(--line); position:relative; flex:none; transition:all .25s var(--ease); margin-top:2px; }
+  .sw::after { content:''; position:absolute; top:2px; left:2px; width:14px; height:14px;
+               border-radius:50%; background:var(--text-3); transition:all .25s var(--ease); }
+  .sw.on { background:var(--accent-lo); border-color:var(--accent-mid); }
+  .sw.on::after { left:18px; background:var(--accent); }
+
+  .rng { width:100%; -webkit-appearance:none; height:2px; background:var(--surface-3);
+         border-radius:2px; outline:none; }
+  .rng::-webkit-slider-thumb { -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+         background:var(--accent); cursor:pointer; border:2px solid var(--bg); }
+
+  .stg { display:grid; grid-template-columns:22px 1fr auto; gap:12px; align-items:center;
+         padding:11px 0; font-size:12.5px; }
+  .stg + .stg { border-top:1px solid var(--line-soft); }
+  .stg-i { font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--text-4); }
+  .stg-s { font-family:'IBM Plex Mono',monospace; font-size:10.5px; color:var(--text-4); }
+  .stg.run .stg-i,.stg.run .stg-s{color:var(--accent)} .stg.run{color:var(--text)}
+  .stg.ok .stg-i,.stg.ok .stg-s{color:var(--conf-high)}
+  .stg.err .stg-i,.stg.err .stg-s{color:var(--conf-none)}
+  .stg:not(.ok):not(.run):not(.err){color:var(--text-4)}
+
+  #log { font-family:'IBM Plex Mono',monospace; font-size:10.5px; line-height:1.75;
+         color:var(--text-3); max-height:150px; overflow-y:auto; }
+  #log::-webkit-scrollbar{width:4px} #log::-webkit-scrollbar-thumb{background:var(--line)}
+  #log b { color:var(--accent); font-weight:400; }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="shell-wide topbar-inner">
+    <a class="brand" href="/"><span class="brand-mark"></span>
+      <span class="brand-name">Singlepass</span><span class="brand-sub">Studio</span></a>
+    <nav class="nav">
+      <a href="/" class="is-active">Reconstruct</a>
+      <a href="/web/viewer.html">Viewer</a>
+      <a href="/web/report.html">Report</a>
+    </nav>
+    <div class="row">
+      <span class="pill" id="engine"><span class="dot dot-live"></span> Engine ready</span>
+      <button class="btn btn-primary btn-sm" id="go">Run reconstruction</button>
+    </div>
+  </div>
+</header>
+
+<main class="shell-wide">
+<div class="work">
+
+  <!-- ══ LEFT — configuration ══ -->
+  <div class="col">
+
+    <div class="card">
+      <div class="card-title">Source</div>
+      <select class="input" id="video" style="font-size:12px"></select>
+      <div id="vinfo" class="dim mono" style="font-size:11px;margin-top:11px;line-height:1.8"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Stages</div>
+      <div class="toggle" data-k="do_blur_filter">
+        <div><div class="toggle-t">Blur rejection</div>
+          <div class="toggle-d">Drop the blurriest frames before matching</div></div>
+        <div class="sw on"></div>
+      </div>
+      <div class="toggle" data-k="also_adjacent">
+        <div><div class="toggle-t">Adjacent pairing</div>
+          <div class="toggle-d">Match i→i+1 for tracking continuity</div></div>
+        <div class="sw on"></div>
+      </div>
+      <div class="toggle" data-k="do_outlier_filter">
+        <div><div class="toggle-t">Outlier removal</div>
+          <div class="toggle-d">Statistical filter on neighbour distance</div></div>
+        <div class="sw on"></div>
+      </div>
+      <div class="toggle" data-k="do_observability">
+        <div><div class="toggle-t">Observability grading</div>
+          <div class="toggle-d">Grade each point by triangulation geometry</div></div>
+        <div class="sw on"></div>
+      </div>
+      <div class="toggle" data-k="do_export_ply">
+        <div><div class="toggle-t">Export PLY</div>
+          <div class="toggle-d">Open in MeshLab / CloudCompare / Blender</div></div>
+        <div class="sw on"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Ingest</div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Keyframes <span class="accent mono" id="l-kf">30</span></label>
+        <input type="range" class="rng" id="target_keyframes" min="10" max="80" value="30">
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Working width <span class="accent mono" id="l-w">960</span> px</label>
+        <input type="range" class="rng" id="max_width" min="480" max="1280" step="80" value="960">
+      </div>
+      <div class="field">
+        <label class="field-label">Blur cutoff percentile <span class="accent mono" id="l-b">25</span></label>
+        <input type="range" class="rng" id="blur_percentile" min="0" max="60" step="5" value="25">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Geometry</div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Detector</label>
+        <div class="seg" style="width:100%">
+          <button class="is-on" data-det="SIFT" style="flex:1">SIFT</button>
+          <button data-det="AKAZE" style="flex:1">AKAZE</button>
+          <button data-det="ORB" style="flex:1">ORB</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Pair stride <span class="accent mono" id="l-s">6</span></label>
+        <input type="range" class="rng" id="pair_stride" min="2" max="20" value="6">
+        <div class="toggle-d" style="margin-top:7px">
+          Wider stride opens the triangulation angle but costs match count.
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Camera FOV <span class="accent mono" id="l-f">78</span>°</label>
+        <input type="range" class="rng" id="fov_deg" min="50" max="110" value="78">
+      </div>
+      <div class="field">
+        <label class="field-label">Lowe ratio <span class="accent mono" id="l-r">0.75</span></label>
+        <input type="range" class="rng" id="ratio_test" min="55" max="90" value="75">
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ CENTRE — stage + cloud ══ -->
+  <div class="col">
+    <div class="card" style="flex:none">
+      <div class="row-between" style="margin-bottom:6px">
+        <div class="card-title" style="margin:0">Pipeline</div>
+        <span class="mono dim" style="font-size:11px" id="elapsed">—</span>
+      </div>
+      <div id="stages">
+        <div class="stg" data-s="probe"><span class="stg-i">01</span><span>Probe source</span><span class="stg-s">idle</span></div>
+        <div class="stg" data-s="ingest"><span class="stg-i">02</span><span>Decode &amp; keyframe selection</span><span class="stg-s">idle</span></div>
+        <div class="stg" data-s="sfm"><span class="stg-i">03</span><span>Features, pairing, pose, triangulation</span><span class="stg-s">idle</span></div>
+        <div class="stg" data-s="cleanup"><span class="stg-i">04</span><span>Outlier removal</span><span class="stg-s">idle</span></div>
+        <div class="stg" data-s="export"><span class="stg-i">05</span><span>Grade &amp; export</span><span class="stg-s">idle</span></div>
+      </div>
+      <div class="bar" style="margin-top:14px"><span id="bar" style="width:0%;background:var(--accent)"></span></div>
+      <div id="log" style="margin-top:12px">ready.</div>
+    </div>
+
+    <div class="stage" style="flex:1;min-height:340px">
+      <canvas id="cv"></canvas>
+      <div class="stage-overlay">
+        <div class="hud" id="hud"><span class="dim">no reconstruction yet</span></div>
+        <div class="legend">
+          <span class="label" style="font-size:9px;margin-bottom:3px">Triangulation quality</span>
+          <div class="legend-row"><span class="legend-sw" style="background:var(--conf-high)"></span> ≥10° · well conditioned</div>
+          <div class="legend-row"><span class="legend-sw" style="background:var(--conf-mid)"></span> 5–10° · usable</div>
+          <div class="legend-row"><span class="legend-sw" style="background:var(--conf-low)"></span> 2–5° · weak</div>
+          <div class="legend-row"><span class="legend-sw" style="background:var(--conf-none)"></span> &lt;2° · unreliable</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ RIGHT — results ══ -->
+  <div class="col">
+    <div class="card">
+      <div class="card-title">Result</div>
+      <div id="kv"><div class="dim" style="font-size:12px">Run a reconstruction to populate.</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Parallax measured</div>
+      <div id="para"><div class="dim" style="font-size:12px">—</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Quality distribution</div>
+      <div id="dist"><div class="dim" style="font-size:12px">—</div></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Artefacts</div>
+      <div id="arte"><div class="dim" style="font-size:12px">—</div></div>
+    </div>
+  </div>
+
+</div>
+</main>
+
+<script type="module">
+const $ = s => document.querySelector(s);
+const cfg = {
+  do_blur_filter:true, also_adjacent:true, do_outlier_filter:true,
+  do_observability:true, do_export_ply:true,
+  target_keyframes:30, max_width:960, blur_percentile:25,
+  detector:'SIFT', pair_stride:6, fov_deg:78, ratio_test:0.75,
+};
+
+/* ── controls ── */
+document.querySelectorAll('.toggle').forEach(t => t.onclick = () => {
+  const sw = t.querySelector('.sw'); sw.classList.toggle('on');
+  cfg[t.dataset.k] = sw.classList.contains('on');
+});
+const bind = (id, label, fmt = v => v) => {
+  const el = $('#'+id);
+  el.oninput = () => { const v = +el.value; cfg[id] = fmt(v); $(label).textContent = fmt(v); };
+};
+bind('target_keyframes','#l-kf'); bind('max_width','#l-w'); bind('blur_percentile','#l-b');
+bind('pair_stride','#l-s'); bind('fov_deg','#l-f');
+$('#ratio_test').oninput = e => { cfg.ratio_test = +e.target.value/100; $('#l-r').textContent = cfg.ratio_test.toFixed(2); };
+document.querySelectorAll('[data-det]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-det]').forEach(x => x.classList.remove('is-on'));
+  b.classList.add('is-on'); cfg.detector = b.dataset.det;
+});
+
+/* ── videos ── */
+let videos = [];
+fetch('/api/videos').then(r=>r.json()).then(d => {
+  videos = d.videos;
+  $('#video').innerHTML = videos.map((v,i)=>`<option value="${i}">${v.name}</option>`).join('');
+  showInfo();
+});
+$('#video').onchange = showInfo;
+function showInfo(){
+  const v = videos[+$('#video').value]; if(!v) return;
+  $('#vinfo').innerHTML =
+    `${v.width}×${v.height} · ${v.fps} fps<br>${v.frames} frames · ${v.duration_s}s · ${v.size_mb} MB`;
+}
+
+/* ── run ── */
+const log = m => { const l=$('#log'); l.innerHTML += '<br>'+m; l.scrollTop = l.scrollHeight; };
+const setStage = (s, cls, txt) => {
+  const el = document.querySelector(`[data-s="${s}"]`); if(!el) return;
+  el.className = 'stg ' + cls;
+  el.querySelector('.stg-s').textContent = txt;
+};
+
+let t0 = 0, timer = null;
+$('#go').onclick = () => {
+  const v = videos[+$('#video').value]; if(!v) return alert('no video found');
+  document.querySelectorAll('.stg').forEach(s => { s.className='stg'; s.querySelector('.stg-s').textContent='queued'; });
+  $('#log').innerHTML = 'starting…'; $('#bar').style.width='0%';
+  $('#engine').innerHTML = '<span class="dot dot-live"></span> Running';
+  t0 = Date.now();
+  clearInterval(timer);
+  timer = setInterval(()=> $('#elapsed').textContent = ((Date.now()-t0)/1000).toFixed(1)+' s', 100);
+
+  fetch('/api/run', {method:'POST',headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({video: v.path, ...cfg})})
+    .then(r=>r.json()).then(({job_id}) => listen(job_id));
+};
+
+function listen(id){
+  const es = new EventSource(`/api/stream/${id}`);
+  es.addEventListener('stage', e => {
+    const d = JSON.parse(e.data);
+    if(d.status==='running'){ setStage(d.stage,'run','running'); log(`<b>${d.stage}</b> started`); }
+    if(d.status==='done'){
+      setStage(d.stage,'ok', d.seconds ? d.seconds+'s' : 'done');
+      log(`<b>${d.stage}</b> done ${d.seconds?d.seconds+'s':''}`);
+    }
+  });
+  es.addEventListener('progress', e => {
+    const d = JSON.parse(e.data);
+    $('#bar').style.width = Math.round(d.frac*100)+'%';
+    const el = document.querySelector(`[data-s="${d.stage}"] .stg-s`);
+    if(el) el.textContent = Math.round(d.frac*100)+'%';
+  });
+  es.addEventListener('error', e => {
+    try{ const d=JSON.parse(e.data); log('<span style="color:var(--conf-none)">ERROR '+d.error+'</span>'); }catch{}
+  });
+  es.addEventListener('done', e => { render(JSON.parse(e.data).result); });
+  es.addEventListener('eof', () => { es.close(); clearInterval(timer);
+    $('#engine').innerHTML = '<span class="dot dot-live"></span> Engine ready'; });
+}
+
+/* ── results ── */
+function render(r){
+  if(!r || !r.ok) return;
+  $('#bar').style.width='100%';
+  const s = r.sfm||{}, c = r.cloud||{}, i = r.ingest||{};
+  const row=(k,v,col)=>`<div class="kv"><span class="kv-k">${k}</span><span class="kv-v"${col?` style="color:${col}"`:''}>${v}</span></div>`;
+
+  $('#kv').innerHTML =
+    row('Total time', r.total_seconds+' s', 'var(--accent)') +
+    row('Keyframes', i.keyframes) +
+    row('Blur rejected', i.rejected_blur) +
+    row('Pairs solved', `${s.pairs_solved}/${s.pairs_attempted}`) +
+    row('Mean matches', s.mean_matches) +
+    row('Mean inliers', s.mean_inliers) +
+    row('Points', (c.points||0).toLocaleString()) +
+    (r.cleanup ? row('Outliers cut', r.cleanup.removed+` (${r.cleanup.removed_pct}%)`) : '');
+
+  const adj = s.mean_parallax_adjacent, wide = s.mean_parallax_wide;
+  const grade = a => a>=10?'var(--conf-high)':a>=5?'var(--conf-mid)':a>=2?'var(--conf-low)':'var(--conf-none)';
+  $('#para').innerHTML =
+    row('Adjacent (i→i+1)', adj!=null?adj.toFixed(2)+'°':'—', adj!=null?grade(adj):null) +
+    row(`Wide (i→i+${cfg.pair_stride})`, wide!=null?wide.toFixed(2)+'°':'—', wide!=null?grade(wide):null) +
+    `<p class="dim" style="font-size:11px;line-height:1.65;margin-top:12px">
+      Depth uncertainty scales as Z²∕(f·B). Below 2° triangulation is numerically
+      unreliable regardless of match count.</p>`;
+
+  const g = c.grade_pct||{}, names={3:'≥10° conditioned',2:'5–10° usable',1:'2–5° weak',0:'<2° unreliable'};
+  const cols={3:'var(--conf-high)',2:'var(--conf-mid)',1:'var(--conf-low)',0:'var(--conf-none)'};
+  $('#dist').innerHTML = [3,2,1,0].map(k=>`
+    <div style="margin-bottom:11px">
+      <div class="row-between" style="font-size:11.5px;margin-bottom:5px">
+        <span class="muted">${names[k]}</span><span class="mono">${(g[k]||0).toFixed(1)} %</span></div>
+      <div class="bar"><span style="width:${g[k]||0}%;background:${cols[k]}"></span></div>
+    </div>`).join('');
+
+  $('#arte').innerHTML =
+    `<div class="dim mono" style="font-size:10.5px;line-height:1.9;word-break:break-all">
+      ${r.ply?'PLY &nbsp;'+r.ply.split(/[\\\\/]/).slice(-2).join('/')+'<br>':''}
+      JSON &nbsp;${(r.viewer_json||'').split(/[\\\\/]/).slice(-2).join('/')}
+     </div>`;
+
+  $('#hud').innerHTML =
+    `<span><span class="dim">POINTS</span> ${(c.points||0).toLocaleString()}</span>
+     <span class="sep"></span><span><span class="dim">PAIRS</span> ${s.pairs_solved}</span>
+     <span class="sep"></span><span class="accent">${r.total_seconds}s</span>`;
+
+  fetch('/api/cloud?path='+encodeURIComponent(r.viewer_json)).then(x=>x.json()).then(draw);
+}
+
+/* ── point cloud viewer ── */
+const CG = {3:[111,169,138],2:[201,162,39],1:[199,125,74],0:[180,84,74]};
+let CLOUD=null, yaw=-0.5, pitch=0.5, dist=115, spin=true, drag=false, lx=0, ly=0;
+const cv=$('#cv'), cx=cv.getContext('2d');
+new ResizeObserver(()=>{const d=Math.min(devicePixelRatio||1,2),r=cv.getBoundingClientRect();
+  cv.width=r.width*d;cv.height=r.height*d;cx.setTransform(d,0,0,d,0,0);}).observe(cv);
+cv.onpointerdown=e=>{drag=true;spin=false;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId)};
+cv.onpointerup=e=>{drag=false};
+cv.onpointermove=e=>{if(!drag)return; yaw+=(e.clientX-lx)*.006;
+  pitch=Math.max(.05,Math.min(1.5,pitch+(e.clientY-ly)*.005)); lx=e.clientX; ly=e.clientY;};
+cv.onwheel=e=>{e.preventDefault(); dist=Math.max(30,Math.min(320,dist*(1+Math.sign(e.deltaY)*.09)))};
+
+function draw(d){
+  const n=d.count, P=new Float32Array(d.positions), C=d.colours?new Float32Array(d.colours):null;
+  CLOUD={n,P,C,G:d.grades||[]};
+}
+(function loop(){
+  const W=cv.clientWidth,H=cv.clientHeight;
+  const g=cx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#141417'); g.addColorStop(1,'#0C0C0E');
+  cx.fillStyle=g; cx.fillRect(0,0,W,H);
+  if(CLOUD){
+    if(spin) yaw+=.0018;
+    const cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);
+    const eye=[dist*cp*sy,dist*cp*cy,dist*sp];
+    const f=nrm([-eye[0],-eye[1],-eye[2]]), r=nrm(crs(f,[0,0,1])), u=crs(r,f), fl=H*1.1;
+    const buf=[];
+    for(let k=0;k<CLOUD.n;k++){
+      const dx=CLOUD.P[k*3]-eye[0],dy=CLOUD.P[k*3+1]-eye[1],dz=CLOUD.P[k*3+2]-eye[2];
+      const z=dx*f[0]+dy*f[1]+dz*f[2]; if(z<3) continue;
+      const sx=W/2+(dx*r[0]+dy*r[1]+dz*r[2])/z*fl, sy2=H/2-(dx*u[0]+dy*u[1]+dz*u[2])/z*fl;
+      if(sx<-8||sx>W+8||sy2<-8||sy2>H+8) continue;
+      buf.push([sx,sy2,z,k]);
+    }
+    buf.sort((a,b)=>b[2]-a[2]);
+    for(const [sx,sy2,z,k] of buf){
+      const c = CG[CLOUD.G[k]??3];
+      cx.globalAlpha=Math.max(.2,Math.min(1,1-(z-40)/220));
+      cx.fillStyle=`rgb(${c[0]},${c[1]},${c[2]})`;
+      const s=Math.max(1,90/z); cx.fillRect(sx,sy2,s,s);
+    }
+    cx.globalAlpha=1;
+  }
+  requestAnimationFrame(loop);
+})();
+function crs(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]}
+function nrm(a){const m=Math.hypot(...a)||1;return [a[0]/m,a[1]/m,a[2]/m]}
+</script>
+</body>
+</html>
