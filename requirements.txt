@@ -1,0 +1,6 @@
+numpy>=1.26
+matplotlib>=3.8
+
+# GPU benchmark only — install the CUDA build separately:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+# The geometry checks run without it:  python run_demo.py --skip-gpu
