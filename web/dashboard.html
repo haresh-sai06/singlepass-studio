@@ -134,12 +134,15 @@
       <div class="field" style="margin-bottom:16px">
         <label class="field-label">Reconstruction</label>
         <div class="seg" style="width:100%">
-          <button class="is-on" data-mode="incremental" style="flex:1">Incremental</button>
-          <button data-mode="pairwise" style="flex:1">Pairwise</button>
+          <button class="is-on" data-mode="incremental" style="flex:1">Classical</button>
+          <button data-mode="mast3r" style="flex:1">MASt3R</button>
+          <button data-mode="pairwise" style="flex:1">Naive</button>
         </div>
         <div class="toggle-d" style="margin-top:7px">
-          Incremental solves one global frame via tracks + PnP. Pairwise is the
-          naive baseline — 53 independent scenes at 53 scales.
+          <strong style="color:var(--text-2)">Classical</strong> — tracks + PnP + plane-sweep MVS.
+          <strong style="color:var(--accent)">MASt3R</strong> — feed-forward pointmaps, built for the
+          low-parallax case this footage is. <strong style="color:var(--text-2)">Naive</strong> — the
+          uncorrected pairwise baseline.
         </div>
       </div>
       <div class="field" style="margin-bottom:16px">

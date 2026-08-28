@@ -25,3 +25,7 @@ Thumbs.db
 *.mkv
 out/runs/
 out/*.png
+
+# MASt3R third-party repo + frame cache
+third_party/
+out/_mast3r_frames/

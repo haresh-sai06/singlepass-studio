@@ -17,6 +17,7 @@ from .analyze import (build_grade_array, cloud_stats, export_ply,
                       export_viewer_json, statistical_outlier_filter)
 from .incremental import IncConfig, run_incremental
 from .ingest import IngestConfig, probe, select_keyframes
+from .mast3r_stage import Mast3rConfig, available as mast3r_available, run_mast3r
 from .mesh import MeshConfig, build_mesh, export_mesh_json, export_mesh_obj
 from .planesweep import SweepConfig, run_planesweep
 from .sfm import SfmConfig, run_sfm
@@ -41,7 +42,10 @@ class RunConfig:
     blur_percentile: float = 25.0
 
     # sfm
-    mode: str = "incremental"       # "incremental" (global) | "pairwise" (baseline)
+    mode: str = "incremental"       # "incremental" | "pairwise" | "mast3r"
+    mast3r_images: int = 16
+    mast3r_size: int = 512
+    mast3r_conf: float = 1.5
     detector: str = "SIFT"
     max_features: int = 4000
     pair_stride: int = 6
@@ -111,7 +115,30 @@ def run(cfg: RunConfig, emit=None) -> dict:
             also_adjacent=cfg.also_adjacent, fov_deg=cfg.fov_deg,
             min_matches=cfg.min_matches,
         )
-        if cfg.mode == "incremental":
+        if cfg.mode == "mast3r":
+            ok_m, why = mast3r_available()
+            if not ok_m:
+                raise RuntimeError(f"MASt3R not ready: {why}")
+            inc = run_mast3r(
+                kfs, Mast3rConfig(max_images=cfg.mast3r_images,
+                                  image_size=cfg.mast3r_size,
+                                  min_conf=cfg.mast3r_conf),
+                progress=lambda f, m: send("progress", stage="sfm", frac=f, msg=m))
+            dt = time.perf_counter() - t
+            stages.append(StageResult("sfm", dt, inc["summary"]))
+            result["sfm"] = inc["summary"]
+            result["cameras"] = [[round(float(v), 4) for v in c]
+                                 for c in inc["camera_centres"]]
+            send("stage", stage="sfm", status="done", seconds=round(dt, 2),
+                 detail=inc["summary"])
+            sfm_poses, sfm_K = inc["poses"], inc["K"]
+            pts, cols = inc["points"], inc["colours"]
+            # MASt3R returns dense pointmaps already — grade uniformly and skip
+            # the plane sweep, which exists to densify a SPARSE cloud.
+            grades = np.full(len(pts), 2, dtype=np.int8)
+            kfs = [kfs[i] for i in np.linspace(0, len(kfs)-1,
+                   min(cfg.mast3r_images, len(kfs))).round().astype(int)]
+        elif cfg.mode == "incremental":
             inc = run_incremental(
                 kfs, scfg, IncConfig(max_reproj_error=cfg.max_reproj_error),
                 progress=lambda f, m: send("progress", stage="sfm", frac=f, msg=m))
@@ -148,7 +175,7 @@ def run(cfg: RunConfig, emit=None) -> dict:
                 else np.full(len(pts), 3, dtype=np.int8)
 
         # ── dense MVS (plane sweep — works under forward motion) ──
-        if cfg.do_dense and len(pts) > 500:
+        if cfg.do_dense and len(pts) > 500 and cfg.mode != "mast3r":
             send("stage", stage="dense", status="running")
             t = time.perf_counter()
             ps = run_planesweep(
