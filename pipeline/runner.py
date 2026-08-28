@@ -17,6 +17,8 @@ from .analyze import (build_grade_array, cloud_stats, export_ply,
                       export_viewer_json, statistical_outlier_filter)
 from .incremental import IncConfig, run_incremental
 from .ingest import IngestConfig, probe, select_keyframes
+from .mesh import MeshConfig, build_mesh, export_mesh_json, export_mesh_obj
+from .planesweep import SweepConfig, run_planesweep
 from .sfm import SfmConfig, run_sfm
 
 
@@ -30,6 +32,8 @@ class RunConfig:
     do_outlier_filter: bool = True
     do_observability: bool = True
     do_export_ply: bool = True
+    do_dense: bool = True           # plane-sweep MVS  (sparse -> dense)
+    do_mesh: bool = True            # Poisson surface  (dense -> model)
 
     # ingest
     max_width: int = 960
@@ -46,6 +50,13 @@ class RunConfig:
     fov_deg: float = 78.0
     min_matches: int = 40
     max_reproj_error: float = 4.0
+
+    # dense / mesh
+    depth_planes: int = 96
+    sweep_stride: int = 3
+    sweep_neighbours: int = 4
+    poisson_depth: int = 9
+    target_triangles: int = 220_000
 
     # cleanup
     outlier_std: float = 2.0
@@ -112,6 +123,7 @@ def run(cfg: RunConfig, emit=None) -> dict:
             send("stage", stage="sfm", status="done", seconds=round(dt, 2),
                  detail=inc["summary"])
 
+            sfm_poses, sfm_K = inc["poses"], inc["K"]
             pts, cols = inc["points"], inc["colours"]
             ang = inc["parallax"]
             # Grade from the ACTUAL multi-view parallax of each point.
@@ -135,6 +147,26 @@ def run(cfg: RunConfig, emit=None) -> dict:
             grades = build_grade_array(sfm["diagnostics"]) if cfg.do_observability \
                 else np.full(len(pts), 3, dtype=np.int8)
 
+        # ── dense MVS (plane sweep — works under forward motion) ──
+        if cfg.do_dense and len(pts) > 500:
+            send("stage", stage="dense", status="running")
+            t = time.perf_counter()
+            ps = run_planesweep(
+                kfs, sfm_poses, sfm_K, pts,
+                SweepConfig(depth_planes=cfg.depth_planes,
+                            ref_stride=cfg.sweep_stride,
+                            neighbours=cfg.sweep_neighbours),
+                progress=lambda f, m: send("progress", stage="dense", frac=f, msg=m))
+            dt = time.perf_counter() - t
+            stages.append(StageResult("dense", dt, ps["summary"]))
+            result["dense"] = ps["summary"]
+            send("stage", stage="dense", status="done", seconds=round(dt, 2),
+                 detail=ps["summary"])
+            if len(ps["points"]) > len(pts):
+                sparse_pts, sparse_cols = pts, cols
+                pts, cols = ps["points"], ps["colours"]
+                grades = np.full(len(pts), 2, dtype=np.int8)
+
         # ── cleanup ──
         if cfg.do_outlier_filter and len(pts) > 100:
             send("stage", stage="cleanup", status="running")
@@ -150,6 +182,23 @@ def run(cfg: RunConfig, emit=None) -> dict:
             result["cleanup"] = det
             send("stage", stage="cleanup", status="done", seconds=round(dt, 2), detail=det)
 
+        # ── surface reconstruction ──
+        mesh_res = None
+        if cfg.do_mesh and len(pts) > 2000:
+            send("stage", stage="mesh", status="running")
+            t = time.perf_counter()
+            mesh_res = build_mesh(
+                pts, cols, result.get("cameras"),
+                MeshConfig(poisson_depth=cfg.poisson_depth,
+                           target_triangles=cfg.target_triangles),
+                progress=lambda f, m: send("progress", stage="mesh", frac=f, msg=m))
+            dt = time.perf_counter() - t
+            det = mesh_res.get("summary", {"failed": mesh_res.get("reason")})
+            stages.append(StageResult("mesh", dt, det))
+            result["mesh"] = det
+            send("stage", stage="mesh", status="done" if mesh_res["ok"] else "error",
+                 seconds=round(dt, 2), detail=det)
+
         # ── stats + export ──
         send("stage", stage="export", status="running")
         t = time.perf_counter()
@@ -163,6 +212,11 @@ def run(cfg: RunConfig, emit=None) -> dict:
         result["viewer_json"] = viewer
         if cfg.do_export_ply:
             result["ply"] = export_ply(run_dir / "cloud.ply", pts, cols)
+        if mesh_res and mesh_res.get("ok"):
+            result["mesh_json"] = export_mesh_json(
+                run_dir / "mesh.json", mesh_res["vertices"], mesh_res["faces"],
+                mesh_res["normals"], mesh_res["colours"])
+            result["mesh_obj"] = export_mesh_obj(run_dir / "mesh.obj", mesh_res["mesh"])
         dt = time.perf_counter() - t
         stages.append(StageResult("export", dt, stats))
         send("stage", stage="export", status="done", seconds=round(dt, 2), detail=stats)

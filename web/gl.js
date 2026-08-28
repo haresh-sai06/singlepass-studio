@@ -47,6 +47,34 @@ void main(){
   gl_FragColor = vec4(vCol, 1.0);
 }`;
 
+const MVERT = `
+attribute vec3 aPos;
+attribute vec3 aNrm;
+attribute vec3 aCol;
+uniform mat4 uMVP;
+varying vec3 vCol;
+varying vec3 vNrm;
+void main(){
+  gl_Position = uMVP * vec4(aPos, 1.0);
+  vCol = aCol;
+  vNrm = aNrm;
+}`;
+
+const MFRAG = `
+precision mediump float;
+varying vec3 vCol;
+varying vec3 vNrm;
+uniform vec3 uLight;
+uniform float uShade;   // 0 = flat colour, 1 = lit
+void main(){
+  vec3 n = normalize(vNrm);
+  float lam = max(dot(n, normalize(uLight)), 0.0);
+  float amb = 0.34;
+  float lit = amb + 0.78 * lam;
+  vec3 c = mix(vCol, vCol * lit, uShade);
+  gl_FragColor = vec4(c, 1.0);
+}`;
+
 const LVERT = `
 attribute vec3 aPos;
 uniform mat4 uMVP;
@@ -126,6 +154,7 @@ export function createViewer(canvas) {
   if (!gl) throw new Error('WebGL unavailable');
 
   const prog = program(gl, VERT, FRAG);
+  const mprog = program(gl, MVERT, MFRAG);
   const lprog = program(gl, LVERT, LFRAG);
 
   const loc = {
@@ -143,14 +172,27 @@ export function createViewer(canvas) {
     col: gl.getUniformLocation(lprog, 'uColour'),
   };
 
+  const mloc = {
+    pos: gl.getAttribLocation(mprog, 'aPos'),
+    nrm: gl.getAttribLocation(mprog, 'aNrm'),
+    col: gl.getAttribLocation(mprog, 'aCol'),
+    mvp: gl.getUniformLocation(mprog, 'uMVP'),
+    light: gl.getUniformLocation(mprog, 'uLight'),
+    shade: gl.getUniformLocation(mprog, 'uShade'),
+  };
+
   const buf = { pos: gl.createBuffer(), col: gl.createBuffer(), grd: gl.createBuffer() };
+  const mbuf = { pos: gl.createBuffer(), nrm: gl.createBuffer(),
+                 col: gl.createBuffer(), idx: gl.createBuffer() };
   const camBuf = gl.createBuffer();
+  let meshCount = 0, meshU32 = false;
+  const extU32 = gl.getExtension('OES_element_index_uint');
 
   const S = {
     count: 0, camCount: 0,
     yaw: -0.6, pitch: 0.45, dist: 105,
     mode: 0, minGrade: 0, pointScale: 260,
-    spin: true, showCams: true,
+    spin: true, showCams: true, showMesh: true, shade: 1.0,
     drag: false, lx: 0, ly: 0,
     fps: 0, _t: performance.now(), _n: 0,
   };
@@ -205,6 +247,35 @@ export function createViewer(canvas) {
     }
   }
 
+  function uploadMesh(m) {
+    if (!m || !m.indices || !m.indices.length) { meshCount = 0; return; }
+    const V = new Float32Array(m.vertices);
+    const N = new Float32Array(m.normals);
+    const C = new Float32Array(m.colours);
+    gl.bindBuffer(gl.ARRAY_BUFFER, mbuf.pos); gl.bufferData(gl.ARRAY_BUFFER, V, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, mbuf.nrm); gl.bufferData(gl.ARRAY_BUFFER, N, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, mbuf.col); gl.bufferData(gl.ARRAY_BUFFER, C, gl.STATIC_DRAW);
+
+    // >65 k vertices needs 32-bit indices
+    meshU32 = (m.vertex_count > 65535) && !!extU32;
+    const I = meshU32 ? new Uint32Array(m.indices) : new Uint16Array(m.indices);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mbuf.idx);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, I, gl.STATIC_DRAW);
+    meshCount = I.length;
+
+    // Auto-frame: fit the camera to the actual extent of what just loaded,
+    // so a mesh and a cloud at different normalisations both fill the view.
+    // Percentile radius, not max: Poisson leaves stray vertices far from the
+    // body, and framing to the furthest one shrinks the real geometry to a dot.
+    const rs = new Float64Array(V.length / 3);
+    for (let i = 0, k = 0; i < V.length; i += 3, k++) {
+      rs[k] = Math.hypot(V[i], V[i + 1], V[i + 2]);
+    }
+    rs.sort();
+    const radius = rs[Math.floor(rs.length * 0.85)] || 40;
+    S.dist = Math.max(18, Math.min(400, radius * 2.1));
+  }
+
   function frame() {
     if (S.spin) S.yaw += 0.0022;
 
@@ -218,7 +289,24 @@ export function createViewer(canvas) {
     const proj = M4.perspective(1.0, canvas.width / canvas.height, 0.5, 4000);
     const mvp = M4.mul(proj, view);
 
-    if (S.count) {
+    if (meshCount && S.showMesh) {
+      gl.useProgram(mprog);
+      gl.uniformMatrix4fv(mloc.mvp, false, mvp);
+      gl.uniform3f(mloc.light, 0.45, 0.35, 0.82);
+      gl.uniform1f(mloc.shade, S.shade);
+      gl.bindBuffer(gl.ARRAY_BUFFER, mbuf.pos);
+      gl.enableVertexAttribArray(mloc.pos); gl.vertexAttribPointer(mloc.pos, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, mbuf.nrm);
+      gl.enableVertexAttribArray(mloc.nrm); gl.vertexAttribPointer(mloc.nrm, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ARRAY_BUFFER, mbuf.col);
+      gl.enableVertexAttribArray(mloc.col); gl.vertexAttribPointer(mloc.col, 3, gl.FLOAT, false, 0, 0);
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, mbuf.idx);
+      gl.drawElements(gl.TRIANGLES, meshCount,
+                      meshU32 ? gl.UNSIGNED_INT : gl.UNSIGNED_SHORT, 0);
+      gl.disableVertexAttribArray(mloc.nrm);
+    }
+
+    if (S.count && !(meshCount && S.showMesh)) {
       gl.useProgram(prog);
       gl.uniformMatrix4fv(loc.mvp, false, mvp);
       gl.uniform1f(loc.ps, S.pointScale);
@@ -255,8 +343,11 @@ export function createViewer(canvas) {
   requestAnimationFrame(frame);
 
   return {
-    upload,
+    upload, uploadMesh,
     state: S,
+    hasMesh: () => meshCount > 0,
+    toggleMesh: () => (S.showMesh = !S.showMesh),
+    setShade: v => { S.shade = v; },
     setMode: m => { S.mode = m === 'quality' ? 1 : 0; },
     setMinGrade: g => { S.minGrade = g; },
     setPointScale: v => { S.pointScale = v; },

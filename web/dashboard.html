@@ -96,6 +96,16 @@
           <div class="toggle-d">Grade each point by triangulation geometry</div></div>
         <div class="sw on"></div>
       </div>
+      <div class="toggle" data-k="do_dense">
+        <div><div class="toggle-t">Dense MVS</div>
+          <div class="toggle-d">Plane sweep — a depth per pixel, not just at features</div></div>
+        <div class="sw on"></div>
+      </div>
+      <div class="toggle" data-k="do_mesh">
+        <div><div class="toggle-t">Surface reconstruction</div>
+          <div class="toggle-d">Poisson meshing — points become a real surface</div></div>
+        <div class="sw on"></div>
+      </div>
       <div class="toggle" data-k="do_export_ply">
         <div><div class="toggle-t">Export PLY</div>
           <div class="toggle-d">Open in MeshLab / CloudCompare / Blender</div></div>
@@ -159,6 +169,17 @@
     <div class="card">
       <div class="card-title">Render</div>
       <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Display</label>
+        <div class="seg" style="width:100%">
+          <button class="is-on" data-disp="mesh" style="flex:1">Surface</button>
+          <button data-disp="points" style="flex:1">Points</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Shading <span class="accent mono" id="l-sh">lit</span></label>
+        <input type="range" class="rng" id="shade" min="0" max="100" value="100">
+      </div>
+      <div class="field" style="margin-bottom:16px">
         <label class="field-label">Colour</label>
         <div class="seg" style="width:100%">
           <button class="is-on" data-col="photo" style="flex:1">True colour</button>
@@ -192,8 +213,10 @@
         <div class="stg" data-s="probe"><span class="stg-i">01</span><span>Probe source</span><span class="stg-s">idle</span></div>
         <div class="stg" data-s="ingest"><span class="stg-i">02</span><span>Decode &amp; keyframe selection</span><span class="stg-s">idle</span></div>
         <div class="stg" data-s="sfm"><span class="stg-i">03</span><span>Features, pairing, pose, triangulation</span><span class="stg-s">idle</span></div>
-        <div class="stg" data-s="cleanup"><span class="stg-i">04</span><span>Outlier removal</span><span class="stg-s">idle</span></div>
-        <div class="stg" data-s="export"><span class="stg-i">05</span><span>Grade &amp; export</span><span class="stg-s">idle</span></div>
+        <div class="stg" data-s="dense"><span class="stg-i">04</span><span>Dense MVS — plane sweep</span><span class="stg-s">idle</span></div>
+        <div class="stg" data-s="cleanup"><span class="stg-i">05</span><span>Outlier removal</span><span class="stg-s">idle</span></div>
+        <div class="stg" data-s="mesh"><span class="stg-i">06</span><span>Surface reconstruction</span><span class="stg-s">idle</span></div>
+        <div class="stg" data-s="export"><span class="stg-i">07</span><span>Grade &amp; export</span><span class="stg-s">idle</span></div>
       </div>
       <div class="bar" style="margin-top:14px"><span id="bar" style="width:0%;background:var(--accent)"></span></div>
       <div id="log" style="margin-top:12px">ready.</div>
@@ -230,6 +253,10 @@
       <div id="dist"><div class="dim" style="font-size:12px">—</div></div>
     </div>
     <div class="card">
+      <div class="card-title">Model</div>
+      <div id="model"><div class="dim" style="font-size:12px">—</div></div>
+    </div>
+    <div class="card">
       <div class="card-title">Artefacts</div>
       <div id="arte"><div class="dim" style="font-size:12px">—</div></div>
     </div>
@@ -242,7 +269,7 @@
 const $ = s => document.querySelector(s);
 const cfg = {
   do_blur_filter:true, also_adjacent:true, do_outlier_filter:true,
-  do_observability:true, do_export_ply:true,
+  do_observability:true, do_export_ply:true, do_dense:true, do_mesh:true,
   target_keyframes:30, max_width:960, blur_percentile:25,
   detector:'SIFT', pair_stride:6, fov_deg:78, ratio_test:0.75, mode:'incremental',
 };
@@ -386,13 +413,33 @@ function render(r){
      ${inc?`<span class="sep"></span><span><span class="dim">REPROJ</span> ${s.mean_reproj_px} px</span>`:''}
      <span class="sep"></span><span class="accent">${r.total_seconds}s</span>`;
 
+  const dn=r.dense, ms=r.mesh;
+  $('#model').innerHTML = (dn?
+      row('Dense points', (dn.points||0).toLocaleString(), 'var(--accent)') +
+      row('Densification', dn.densification_factor+'×') +
+      row('References used', `${dn.references_used}/${dn.references}`) +
+      row('Photo-consistency', dn.mean_ncc) : '') +
+    (ms && ms.triangles ?
+      row('Vertices', (ms.vertices||0).toLocaleString()) +
+      row('Triangles', (ms.triangles||0).toLocaleString(), 'var(--conf-high)') : '') +
+    (!dn && !ms ? '<div class="dim" style="font-size:12px">dense + mesh disabled</div>' : '');
+
   fetch('/api/cloud?path='+encodeURIComponent(r.viewer_json)).then(x=>x.json()).then(draw);
+  if (r.mesh_json) fetch('/api/cloud?path='+encodeURIComponent(r.mesh_json))
+    .then(x=>x.json()).then(m=>V.uploadMesh(m));
 }
 
 /* ── real-time WebGL viewer ── */
 import { createViewer } from '/web/gl.js';
 const V = createViewer($('#cv'));
 
+document.querySelectorAll('[data-disp]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-disp]').forEach(x=>x.classList.remove('is-on'));
+  b.classList.add('is-on');
+  if ((b.dataset.disp==='mesh') !== V.state.showMesh) V.toggleMesh();
+});
+$('#shade').oninput = e => { const v=+e.target.value/100; V.setShade(v);
+  $('#l-sh').textContent = v>0.66?'lit':v>0.2?'soft':'flat'; };
 document.querySelectorAll('[data-col]').forEach(b => b.onclick = () => {
   document.querySelectorAll('[data-col]').forEach(x=>x.classList.remove('is-on'));
   b.classList.add('is-on'); V.setMode(b.dataset.col);
