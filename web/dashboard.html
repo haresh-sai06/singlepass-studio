@@ -122,6 +122,17 @@
     <div class="card">
       <div class="card-title">Geometry</div>
       <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Reconstruction</label>
+        <div class="seg" style="width:100%">
+          <button class="is-on" data-mode="incremental" style="flex:1">Incremental</button>
+          <button data-mode="pairwise" style="flex:1">Pairwise</button>
+        </div>
+        <div class="toggle-d" style="margin-top:7px">
+          Incremental solves one global frame via tracks + PnP. Pairwise is the
+          naive baseline — 53 independent scenes at 53 scales.
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:16px">
         <label class="field-label">Detector</label>
         <div class="seg" style="width:100%">
           <button class="is-on" data-det="SIFT" style="flex:1">SIFT</button>
@@ -143,6 +154,29 @@
       <div class="field">
         <label class="field-label">Lowe ratio <span class="accent mono" id="l-r">0.75</span></label>
         <input type="range" class="rng" id="ratio_test" min="55" max="90" value="75">
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Render</div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Colour</label>
+        <div class="seg" style="width:100%">
+          <button class="is-on" data-col="photo" style="flex:1">True colour</button>
+          <button data-col="quality" style="flex:1">Quality</button>
+        </div>
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Min quality <span class="accent mono" id="l-mg">all</span></label>
+        <input type="range" class="rng" id="mingrade" min="0" max="3" value="0">
+      </div>
+      <div class="field" style="margin-bottom:16px">
+        <label class="field-label">Point size <span class="accent mono" id="l-ps">260</span></label>
+        <input type="range" class="rng" id="pscale" min="80" max="700" step="20" value="260">
+      </div>
+      <div class="row" style="gap:8px">
+        <button class="btn btn-sm" id="b-spin" style="flex:1">Pause</button>
+        <button class="btn btn-sm" id="b-cams" style="flex:1">Cameras</button>
+        <button class="btn btn-sm" id="b-reset" style="flex:1">Reset</button>
       </div>
     </div>
   </div>
@@ -169,6 +203,7 @@
       <canvas id="cv"></canvas>
       <div class="stage-overlay">
         <div class="hud" id="hud"><span class="dim">no reconstruction yet</span></div>
+        <div class="hud" style="align-self:flex-end"><span class="mono" id="fps">— fps</span></div>
         <div class="legend">
           <span class="label" style="font-size:9px;margin-bottom:3px">Triangulation quality</span>
           <div class="legend-row"><span class="legend-sw" style="background:var(--conf-high)"></span> ≥10° · well conditioned</div>
@@ -209,7 +244,7 @@ const cfg = {
   do_blur_filter:true, also_adjacent:true, do_outlier_filter:true,
   do_observability:true, do_export_ply:true,
   target_keyframes:30, max_width:960, blur_percentile:25,
-  detector:'SIFT', pair_stride:6, fov_deg:78, ratio_test:0.75,
+  detector:'SIFT', pair_stride:6, fov_deg:78, ratio_test:0.75, mode:'incremental',
 };
 
 /* ── controls ── */
@@ -297,21 +332,34 @@ function render(r){
   const s = r.sfm||{}, c = r.cloud||{}, i = r.ingest||{};
   const row=(k,v,col)=>`<div class="kv"><span class="kv-k">${k}</span><span class="kv-v"${col?` style="color:${col}"`:''}>${v}</span></div>`;
 
+  const inc = s.cameras_registered !== undefined;   // incremental vs pairwise summary
   $('#kv').innerHTML =
     row('Total time', r.total_seconds+' s', 'var(--accent)') +
     row('Keyframes', i.keyframes) +
     row('Blur rejected', i.rejected_blur) +
-    row('Pairs solved', `${s.pairs_solved}/${s.pairs_attempted}`) +
-    row('Mean matches', s.mean_matches) +
-    row('Mean inliers', s.mean_inliers) +
+    (inc
+      ? row('Cameras solved', `${s.cameras_registered}/${s.keyframes}`,
+            s.cameras_registered===s.keyframes?'var(--conf-high)':null) +
+        row('Reprojection err', s.mean_reproj_px+' px',
+            s.mean_reproj_px<1?'var(--conf-high)':'var(--conf-low)') +
+        row('Tracks', `${s.tracks_triangulated}/${s.tracks_total}`) +
+        row('Mean track len', s.mean_track_length) +
+        row('Longest track', s.max_track_length+' frames')
+      : row('Pairs solved', `${s.pairs_solved}/${s.pairs_attempted}`) +
+        row('Mean matches', s.mean_matches) +
+        row('Mean inliers', s.mean_inliers)) +
     row('Points', (c.points||0).toLocaleString()) +
     (r.cleanup ? row('Outliers cut', r.cleanup.removed+` (${r.cleanup.removed_pct}%)`) : '');
 
-  const adj = s.mean_parallax_adjacent, wide = s.mean_parallax_wide;
   const grade = a => a>=10?'var(--conf-high)':a>=5?'var(--conf-mid)':a>=2?'var(--conf-low)':'var(--conf-none)';
-  $('#para').innerHTML =
-    row('Adjacent (i→i+1)', adj!=null?adj.toFixed(2)+'°':'—', adj!=null?grade(adj):null) +
-    row(`Wide (i→i+${cfg.pair_stride})`, wide!=null?wide.toFixed(2)+'°':'—', wide!=null?grade(wide):null) +
+  const deg = v => v!=null ? (+v).toFixed(2)+'°' : '—';
+  $('#para').innerHTML = (inc
+      ? row('Seed pair', s.seed_pair) +
+        row('Seed parallax', deg(s.seed_parallax_deg), grade(s.seed_parallax_deg)) +
+        row('Mean (multi-view)', deg(s.mean_parallax_deg), grade(s.mean_parallax_deg)) +
+        row('Median', deg(s.median_parallax_deg), grade(s.median_parallax_deg))
+      : row('Adjacent (i→i+1)', deg(s.mean_parallax_adjacent), grade(s.mean_parallax_adjacent)) +
+        row(`Wide (i→i+${cfg.pair_stride})`, deg(s.mean_parallax_wide), grade(s.mean_parallax_wide))) +
     `<p class="dim" style="font-size:11px;line-height:1.65;margin-top:12px">
       Depth uncertainty scales as Z²∕(f·B). Below 2° triangulation is numerically
       unreliable regardless of match count.</p>`;
@@ -333,58 +381,35 @@ function render(r){
 
   $('#hud').innerHTML =
     `<span><span class="dim">POINTS</span> ${(c.points||0).toLocaleString()}</span>
-     <span class="sep"></span><span><span class="dim">PAIRS</span> ${s.pairs_solved}</span>
+     <span class="sep"></span>
+     <span><span class="dim">${inc?'CAMERAS':'PAIRS'}</span> ${inc?s.cameras_registered:s.pairs_solved}</span>
+     ${inc?`<span class="sep"></span><span><span class="dim">REPROJ</span> ${s.mean_reproj_px} px</span>`:''}
      <span class="sep"></span><span class="accent">${r.total_seconds}s</span>`;
 
   fetch('/api/cloud?path='+encodeURIComponent(r.viewer_json)).then(x=>x.json()).then(draw);
 }
 
-/* ── point cloud viewer ── */
-const CG = {3:[111,169,138],2:[201,162,39],1:[199,125,74],0:[180,84,74]};
-let CLOUD=null, yaw=-0.5, pitch=0.5, dist=115, spin=true, drag=false, lx=0, ly=0;
-const cv=$('#cv'), cx=cv.getContext('2d');
-new ResizeObserver(()=>{const d=Math.min(devicePixelRatio||1,2),r=cv.getBoundingClientRect();
-  cv.width=r.width*d;cv.height=r.height*d;cx.setTransform(d,0,0,d,0,0);}).observe(cv);
-cv.onpointerdown=e=>{drag=true;spin=false;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId)};
-cv.onpointerup=e=>{drag=false};
-cv.onpointermove=e=>{if(!drag)return; yaw+=(e.clientX-lx)*.006;
-  pitch=Math.max(.05,Math.min(1.5,pitch+(e.clientY-ly)*.005)); lx=e.clientX; ly=e.clientY;};
-cv.onwheel=e=>{e.preventDefault(); dist=Math.max(30,Math.min(320,dist*(1+Math.sign(e.deltaY)*.09)))};
+/* ── real-time WebGL viewer ── */
+import { createViewer } from '/web/gl.js';
+const V = createViewer($('#cv'));
 
-function draw(d){
-  const n=d.count, P=new Float32Array(d.positions), C=d.colours?new Float32Array(d.colours):null;
-  CLOUD={n,P,C,G:d.grades||[]};
-}
-(function loop(){
-  const W=cv.clientWidth,H=cv.clientHeight;
-  const g=cx.createLinearGradient(0,0,0,H); g.addColorStop(0,'#141417'); g.addColorStop(1,'#0C0C0E');
-  cx.fillStyle=g; cx.fillRect(0,0,W,H);
-  if(CLOUD){
-    if(spin) yaw+=.0018;
-    const cp=Math.cos(pitch),sp=Math.sin(pitch),cy=Math.cos(yaw),sy=Math.sin(yaw);
-    const eye=[dist*cp*sy,dist*cp*cy,dist*sp];
-    const f=nrm([-eye[0],-eye[1],-eye[2]]), r=nrm(crs(f,[0,0,1])), u=crs(r,f), fl=H*1.1;
-    const buf=[];
-    for(let k=0;k<CLOUD.n;k++){
-      const dx=CLOUD.P[k*3]-eye[0],dy=CLOUD.P[k*3+1]-eye[1],dz=CLOUD.P[k*3+2]-eye[2];
-      const z=dx*f[0]+dy*f[1]+dz*f[2]; if(z<3) continue;
-      const sx=W/2+(dx*r[0]+dy*r[1]+dz*r[2])/z*fl, sy2=H/2-(dx*u[0]+dy*u[1]+dz*u[2])/z*fl;
-      if(sx<-8||sx>W+8||sy2<-8||sy2>H+8) continue;
-      buf.push([sx,sy2,z,k]);
-    }
-    buf.sort((a,b)=>b[2]-a[2]);
-    for(const [sx,sy2,z,k] of buf){
-      const c = CG[CLOUD.G[k]??3];
-      cx.globalAlpha=Math.max(.2,Math.min(1,1-(z-40)/220));
-      cx.fillStyle=`rgb(${c[0]},${c[1]},${c[2]})`;
-      const s=Math.max(1,90/z); cx.fillRect(sx,sy2,s,s);
-    }
-    cx.globalAlpha=1;
-  }
-  requestAnimationFrame(loop);
-})();
-function crs(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]}
-function nrm(a){const m=Math.hypot(...a)||1;return [a[0]/m,a[1]/m,a[2]/m]}
+document.querySelectorAll('[data-col]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-col]').forEach(x=>x.classList.remove('is-on'));
+  b.classList.add('is-on'); V.setMode(b.dataset.col);
+});
+document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('[data-mode]').forEach(x=>x.classList.remove('is-on'));
+  b.classList.add('is-on'); cfg.mode = b.dataset.mode;
+});
+const MG=['all','≥2°','≥5°','≥10°'];
+$('#mingrade').oninput = e => { V.setMinGrade(+e.target.value); $('#l-mg').textContent = MG[+e.target.value]; };
+$('#pscale').oninput  = e => { V.setPointScale(+e.target.value); $('#l-ps').textContent = e.target.value; };
+$('#b-spin').onclick  = e => { V.toggleSpin(); e.target.textContent = V.state.spin?'Pause':'Spin'; };
+$('#b-cams').onclick  = () => V.toggleCams();
+$('#b-reset').onclick = () => V.reset();
+
+function draw(d){ V.upload(d); }
+setInterval(()=>{ const f=$('#fps'); if(f) f.textContent = V.fps()+' fps'; }, 500);
 </script>
 </body>
 </html>

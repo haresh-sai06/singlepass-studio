@@ -111,29 +111,40 @@ def export_ply(path: str | Path, pts: np.ndarray, cols: np.ndarray) -> str:
 
 
 def export_viewer_json(path: str | Path, pts: np.ndarray, cols: np.ndarray,
-                       grades: np.ndarray, max_points: int = 24_000) -> str:
-    """Downsampled cloud for the browser viewer, normalised to a unit-ish box."""
+                       grades: np.ndarray, max_points: int = 150_000,
+                       cameras: list | None = None) -> str:
+    """Cloud for the WebGL viewer, normalised into a comfortable viewing box.
+
+    The camera trajectory is normalised with the SAME transform, so the recovered
+    flight path sits correctly relative to the scene.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
     n = len(pts)
-    if n > max_points:
-        idx = np.random.default_rng(0).choice(n, size=max_points, replace=False)
-    else:
-        idx = np.arange(n)
+    idx = (np.random.default_rng(0).choice(n, size=max_points, replace=False)
+           if n > max_points else np.arange(n))
 
     p = pts[idx].astype(np.float32)
+    centre = np.zeros(3, dtype=np.float32)
+    scale = 1.0
     if len(p):
-        c = np.median(p, axis=0)
-        p = p - c
-        s = float(np.percentile(np.linalg.norm(p, axis=1), 92)) or 1.0
-        p = p / s * 40.0     # scale to a comfortable viewing size
+        centre = np.median(p, axis=0).astype(np.float32)
+        p = p - centre
+        scale = float(np.percentile(np.linalg.norm(p, axis=1), 92)) or 1.0
+        p = p / scale * 40.0
+
+    cam_out: list[float] = []
+    if cameras:
+        c = (np.asarray(cameras, dtype=np.float32) - centre) / scale * 40.0
+        cam_out = [round(float(v), 3) for v in c.ravel()]
 
     data = {
         "count": int(len(p)),
         "positions": [round(float(v), 3) for v in p.ravel()],
-        "colours": [round(float(v), 3) for v in cols[idx].ravel()] if len(cols) else [],
+        "colours": [round(float(v), 4) for v in cols[idx].ravel()] if len(cols) else [],
         "grades": [int(g) for g in (grades[idx] if len(grades) else [])],
+        "cameras": cam_out,
     }
     path.write_text(json.dumps(data), encoding="utf-8")
     return str(path)

@@ -15,6 +15,7 @@ import numpy as np
 
 from .analyze import (build_grade_array, cloud_stats, export_ply,
                       export_viewer_json, statistical_outlier_filter)
+from .incremental import IncConfig, run_incremental
 from .ingest import IngestConfig, probe, select_keyframes
 from .sfm import SfmConfig, run_sfm
 
@@ -36,6 +37,7 @@ class RunConfig:
     blur_percentile: float = 25.0
 
     # sfm
+    mode: str = "incremental"       # "incremental" (global) | "pairwise" (baseline)
     detector: str = "SIFT"
     max_features: int = 4000
     pair_stride: int = 6
@@ -43,6 +45,7 @@ class RunConfig:
     ratio_test: float = 0.75
     fov_deg: float = 78.0
     min_matches: int = 40
+    max_reproj_error: float = 4.0
 
     # cleanup
     outlier_std: float = 2.0
@@ -97,18 +100,40 @@ def run(cfg: RunConfig, emit=None) -> dict:
             also_adjacent=cfg.also_adjacent, fov_deg=cfg.fov_deg,
             min_matches=cfg.min_matches,
         )
-        sfm = run_sfm(kfs, scfg,
-                      progress=lambda f, m: send("progress", stage="sfm", frac=f, msg=m))
-        dt = time.perf_counter() - t
-        stages.append(StageResult("sfm", dt, sfm["summary"]))
-        result["sfm"] = sfm["summary"]
-        result["diagnostics"] = sfm["diagnostics"]
-        send("stage", stage="sfm", status="done", seconds=round(dt, 2),
-             detail=sfm["summary"])
+        if cfg.mode == "incremental":
+            inc = run_incremental(
+                kfs, scfg, IncConfig(max_reproj_error=cfg.max_reproj_error),
+                progress=lambda f, m: send("progress", stage="sfm", frac=f, msg=m))
+            dt = time.perf_counter() - t
+            stages.append(StageResult("sfm", dt, inc["summary"]))
+            result["sfm"] = inc["summary"]
+            result["cameras"] = [[round(float(v), 4) for v in c]
+                                 for c in inc["camera_centres"]]
+            send("stage", stage="sfm", status="done", seconds=round(dt, 2),
+                 detail=inc["summary"])
 
-        pts, cols = sfm["points"], sfm["colours"]
-        grades = build_grade_array(sfm["diagnostics"]) if cfg.do_observability \
-            else np.full(len(pts), 3, dtype=np.int8)
+            pts, cols = inc["points"], inc["colours"]
+            ang = inc["parallax"]
+            # Grade from the ACTUAL multi-view parallax of each point.
+            grades = np.zeros(len(pts), dtype=np.int8)
+            grades[ang >= 2] = 1
+            grades[ang >= 5] = 2
+            grades[ang >= 10] = 3
+            if not cfg.do_observability:
+                grades = np.full(len(pts), 3, dtype=np.int8)
+        else:
+            sfm = run_sfm(kfs, scfg,
+                          progress=lambda f, m: send("progress", stage="sfm", frac=f, msg=m))
+            dt = time.perf_counter() - t
+            stages.append(StageResult("sfm", dt, sfm["summary"]))
+            result["sfm"] = sfm["summary"]
+            result["diagnostics"] = sfm["diagnostics"]
+            send("stage", stage="sfm", status="done", seconds=round(dt, 2),
+                 detail=sfm["summary"])
+
+            pts, cols = sfm["points"], sfm["colours"]
+            grades = build_grade_array(sfm["diagnostics"]) if cfg.do_observability \
+                else np.full(len(pts), 3, dtype=np.int8)
 
         # ── cleanup ──
         if cfg.do_outlier_filter and len(pts) > 100:
@@ -133,7 +158,8 @@ def run(cfg: RunConfig, emit=None) -> dict:
 
         run_dir = Path(cfg.out_dir) / time.strftime("%Y%m%d-%H%M%S")
         run_dir.mkdir(parents=True, exist_ok=True)
-        viewer = export_viewer_json(run_dir / "cloud.json", pts, cols, grades)
+        viewer = export_viewer_json(run_dir / "cloud.json", pts, cols, grades,
+                                    cameras=result.get("cameras"))
         result["viewer_json"] = viewer
         if cfg.do_export_ply:
             result["ply"] = export_ply(run_dir / "cloud.ply", pts, cols)
